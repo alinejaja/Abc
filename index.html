@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Imagem para ASCII</title>
+    <style>
+        body {
+            font-family: monospace;
+            text-align: center;
+            background-color: #222;
+            color: white;
+        }
+        textarea {
+            width: 100%;
+            height: 400px;
+            background-color: black;
+            color: white;
+            font-family: monospace;
+            white-space: pre;
+            overflow: auto;
+            font-size: 10px;
+        }
+        input[type="range"] {
+            width: 200px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Conversor de Imagem para ASCII</h1>
+
+    <input type="file" id="imageInput" accept="image/*"><br><br>
+
+    <label for="widthRange">Largura: </label>
+    <input type="range" id="widthRange" min="10" max="300" value="100">
+    <span id="widthValue">100</span> px
+    <br><br>
+
+    <label for="heightRange">Altura: </label>
+    <input type="range" id="heightRange" min="10" max="300" value="50">
+    <span id="heightValue">50</span> px
+    <br><br>
+
+    <label for="contrastRange">Contraste: </label>
+    <input type="range" id="contrastRange" min="-100" max="100" value="0">
+    <span id="contrastValue">0</span>
+    <br><br>
+
+    <label for="brightnessRange">Brilho: </label>
+    <input type="range" id="brightnessRange" min="-100" max="100" value="0">
+    <span id="brightnessValue">0</span>
+    <br><br>
+
+    <button onclick="copyToClipboard()">Copiar ASCII</button>
+    <button onclick="downloadImage()">Baixar como Imagem</button>
+
+    <canvas id="canvas" style="display: none;"></canvas>
+    <br>
+    <textarea id="asciiOutput" readonly></textarea>
+
+    <script>
+        const asciiChars = "█▓▒░.*:+ "; // Nova paleta de caracteres para maior nitidez
+
+        document.getElementById('imageInput').addEventListener('change', handleImage);
+        document.getElementById('widthRange').addEventListener('input', updateValues);
+        document.getElementById('heightRange').addEventListener('input', updateValues);
+        document.getElementById('contrastRange').addEventListener('input', updateValues);
+        document.getElementById('brightnessRange').addEventListener('input', updateValues);
+
+        function handleImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        convertToASCII(img);
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateValues() {
+            document.getElementById('widthValue').textContent = document.getElementById('widthRange').value;
+            document.getElementById('heightValue').textContent = document.getElementById('heightRange').value;
+            document.getElementById('contrastValue').textContent = document.getElementById('contrastRange').value;
+            document.getElementById('brightnessValue').textContent = document.getElementById('brightnessRange').value;
+            reloadImage();
+        }
+
+        function reloadImage() {
+            const img = document.getElementById('imageInput').files[0];
+            if (img) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgElement = new Image();
+                    imgElement.src = e.target.result;
+                    imgElement.onload = function() {
+                        convertToASCII(imgElement);
+                    };
+                };
+                reader.readAsDataURL(img);
+            }
+        }
+
+        function adjustContrastAndBrightness(r, g, b) {
+            const contrast = parseInt(document.getElementById('contrastRange').value);
+            const brightness = parseInt(document.getElementById('brightnessRange').value);
+
+            r = r + brightness;
+            g = g + brightness;
+            b = b + brightness;
+
+            r = ((r - 128) * contrast / 100) + 128;
+            g = ((g - 128) * contrast / 100) + 128;
+            b = ((b - 128) * contrast / 100) + 128;
+
+            return [Math.max(0, Math.min(255, r)), Math.max(0, Math.min(255, g)), Math.max(0, Math.min(255, b))];
+        }
+
+        function convertToASCII(img) {
+            const width = parseInt(document.getElementById('widthRange').value);
+            const height = parseInt(document.getElementById('heightRange').value);
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.drawImage(img, 0, 0, width, height);
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const pixels = imageData.data;
+            let asciiArt = "";
+
+            for (let y = 0; y < height; y++) {
+                let row = "";
+                for (let x = 0; x < width; x++) {
+                    const index = (y * width + x) * 4;
+                    let [r, g, b] = adjustContrastAndBrightness(pixels[index], pixels[index + 1], pixels[index + 2]);
+                    const brightness = (r + g + b) / 3;
+                    const charIndex = Math.floor((brightness / 255) * (asciiChars.length - 1));
+                    row += asciiChars[charIndex] + " ";
+                }
+                asciiArt += row + "\n";
+            }
+
+            document.getElementById('asciiOutput').textContent = asciiArt;
+        }
+
+        function copyToClipboard() {
+            const textarea = document.getElementById("asciiOutput");
+            textarea.select();
+            document.execCommand("copy");
+            alert("ASCII copiado!");
+        }
+
+        function downloadImage() {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const textarea = document.getElementById("asciiOutput").value.split("\n");
+
+            canvas.width = textarea[0].length * 10;
+            canvas.height = textarea.length * 12;
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
+            ctx.font = "12px monospace";
+
+            textarea.forEach((line, i) => {
+                ctx.fillText(line, 5, 12 * (i + 1));
+            });
+
+            const link = document.createElement("a");
+            link.download = "ascii-art.png";
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    </script>
+    
+
+</body>
+</html>
